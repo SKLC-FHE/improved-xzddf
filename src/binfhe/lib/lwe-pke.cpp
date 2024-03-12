@@ -134,15 +134,15 @@ LWECiphertext LWEEncryptionScheme::Encrypt(const std::shared_ptr<LWECryptoParams
     // #endif
 
     /*Uniform*/
-    // DiscreteUniformGeneratorImpl<NativeVector> dug;
-    // dug.SetModulus(mod);
-    // NativeVector a = dug.GenerateVector(n);
+    DiscreteUniformGeneratorImpl<NativeVector> dug;
+    dug.SetModulus(mod);
+    NativeVector a = dug.GenerateVector(n);
 
     /*Gaussian*/
-    DiscreteGaussianGeneratorImpl<NativeVector> dgg;
-    // dgg.SetStd(3.19);
-    dgg.SetStd(1);
-    NativeVector a = dgg.GenerateVector(n,mod);
+    // DiscreteGaussianGeneratorImpl<NativeVector> dgg;
+    // // dgg.SetStd(3.19);
+    // dgg.SetStd(1);
+    // NativeVector a = dgg.GenerateVector(n,mod);
     // std::cout<<"a = "<<a<<std::endl;
 
 
@@ -251,12 +251,12 @@ void LWEEncryptionScheme::Decrypt(const std::shared_ptr<LWECryptoParams>& params
     NativeInteger temp = r;
     temp.ModSubFastEq(NativeVector::Integer(mod/4),mod);  // b-as - q/4 * m  =  e
     // std::cout<<temp<<" ";
-    int err = temp.ConvertToInt();
-    if(err > (q/4))
-    {
-        err = err - q;
-    }
-    std::cout<<err<<",";
+    // int err = temp.ConvertToInt();
+    // if(err > (q/4))
+    // {
+        // err = err - q;
+    // }
+    // std::cout<<err<<",";
 
 
     // Alternatively, rounding can be done as
