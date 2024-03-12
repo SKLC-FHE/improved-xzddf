@@ -127,7 +127,6 @@ LWECiphertext LWEEncryptionScheme::Encrypt(const std::shared_ptr<LWECryptoParams
     // std::cout << "模切换后的secret"<<s << std::endl;
     NativeInteger b = (m % p) * (mod / p) + params->GetDgg().GenerateInteger(mod);
     //NativeInteger b = (m % p) * (mod / p) ;
-    // NativeInteger b = (m % p) * (mod / p);
     // #if defined(BINFHE_DEBUG)
     //    std::cout << b % mod << std::endl;
     //    std::cout << (m % p) * (mod / p) << std::endl;
@@ -140,16 +139,10 @@ LWECiphertext LWEEncryptionScheme::Encrypt(const std::shared_ptr<LWECryptoParams
 
     /*Gaussian*/
     // DiscreteGaussianGeneratorImpl<NativeVector> dgg;
-    // // dgg.SetStd(3.19);
     // dgg.SetStd(1);
     // NativeVector a = dgg.GenerateVector(n,mod);
     // std::cout<<"a = "<<a<<std::endl;
 
-
-
-
-    //a=0;
-    //std::cout << "LWE的密文a"<<a[0] << std::endl;
     NativeInteger mu = mod.ComputeMu();
 
     for (size_t i = 0; i < n; ++i) {
@@ -262,7 +255,7 @@ void LWEEncryptionScheme::Decrypt(const std::shared_ptr<LWECryptoParams>& params
     // Alternatively, rounding can be done as
     // *result = (r.MultiplyAndRound(NativeInteger(4),q)).ConvertToInt();
     // But the method below is a more efficient way of doing the rounding
-    // the idea is that Round(4/q x) = q/8 + Floor(4/q x)    向下取整+q/8就是四舍五入
+    // the idea is that Round(4/q x) = q/8 + Floor(4/q x)    
     r.ModAddFastEq((mod / (p * 2)), mod);
 
     *result = ((NativeInteger(p) * r) / mod).ConvertToInt();
