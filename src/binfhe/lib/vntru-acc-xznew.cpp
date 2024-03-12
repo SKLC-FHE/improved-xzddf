@@ -17,11 +17,10 @@ VectorNTRUACCKey VectorNTRUAccumulatorXZNEW::KeyGenAcc(const std::shared_ptr<Vec
     VectorNTRUACCKey ek = std::make_shared<VectorNTRUACCKeyImpl>(1, 2, q - 1 > n + 1 ? q - 1 : n + 1);
 
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(n))
-    //和xzddf不同 这里全部改为非kdm的加密
+
     for (size_t i = 0; i < n; ++i) {
         auto s{sv[i].ConvertToInt<int32_t>()};
         (*ek)[0][0][i] = KeyGenXZNEW(params, invskNTT, s > modHalf ? mod - s : -s);
-        //如果s大于modHalf，则返回s - mod，否则返回s
     }
     auto sums = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -37,7 +36,6 @@ VectorNTRUACCKey VectorNTRUAccumulatorXZNEW::KeyGenAcc(const std::shared_ptr<Vec
     //NTRU'(X^{sum s}/f(X))
     (*ek)[0][0][n] = KDMKeyGenXZNEW(params, invskNTT, 5*sums);
 
-     /*----------生成优化的自同构秘钥-----------*/
     uint32_t numAutoKeys{params->GetNumAutoKeys()};
     NativeInteger gen = NativeInteger(5);
     uint32_t N{params->GetN()};
@@ -54,55 +52,22 @@ VectorNTRUACCKey VectorNTRUAccumulatorXZNEW::KeyGenAcc(const std::shared_ptr<Vec
 
 void VectorNTRUAccumulatorXZNEW::EvalAcc(const std::shared_ptr<VectorNTRUCryptoParams>& params,
                                          ConstVectorNTRUACCKey& ek, NTRUCiphertext& acc, const NativeVector& a,NativePoly f) const {
-    //TODO
-    //cout<<"start eval acc"<<endl;
-    // clock_t start = clock();
+
     size_t n   = a.GetLength();
     uint32_t N = params->GetN();
     int32_t q  = params->Getq().ConvertToInt<int32_t>();
-    //uint32_t M           = 2 * params->GetN();
     std::vector<uint32_t> ua(n);
     std::vector<uint32_t> w(n);
-    //std::vector<uint32_t> invw(n + 1);
-    //invw[n] = 1;
-    //std::vector<NativeInteger> NATIVEw(n);  //自同构的次数
-    //std::vector<uint32_t> invindex(n);      //对应到autk 的index
 
     auto polyParams = params->GetPolyParams();
 
 
     for (size_t i = 0; i < n; i++) {
         ua[i]   = a[i].ConvertToInt<int32_t>();       //a
-        //cout<<"ua[0] = "<< ua[i]<<endl;
         w[i]    = (2 * N / q) * ua[i] + 1;            //w_i
-        // invw[i] = ModInverse(w[i], 2 * N) % (2 * N);  //w_inv
     }
-    // std::cout << "w0=" << w[0] << std::endl;
-    // std::cout << "invw0=" << invw[0] << std::endl;
-    // for (size_t i = 0; i < n; i++) {
-    //     NATIVEw[i] = NativeVector::Integer((w[i] * invw[i + 1]) % (2 * N));
-    //     //std::cout<<"inverse"<< NATIVEw[i];
-    //     invindex[i] = (NATIVEw[i].ConvertToInt<int32_t>() - 3) / 2;
-    // }
-    //cout << "输入的acc = " << endl;
-    // NativePoly acc_in(polyParams, Format::EVALUATION, true);
-    // acc_in = acc->GetElements();
-    // acc_in.SetFormat(COEFFICIENT);
-    // for (uint32_t i = 0; i < N; i++) {
-    //     cout << acc_in[i] << " ";
-    // }
+  
 
-    // NativePoly res1(polyParams, Format::EVALUATION, true);
-    // f.SetFormat(EVALUATION);
-    // res1 = f * acc->GetElements();
-    // res1.SetFormat(Format::COEFFICIENT);
-    // cout << "\n 盲选转前的 acc0 的解密 = " << endl;
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res1[i] << " ";
-    // }
-
-
-    /*-----------------------优化的迭代乘和自同构------------------------------------*/
     uint32_t Nh          = params->GetN() / 2;
     uint32_t M           = 2 * params->GetN();
     uint32_t numAutoKeys = params->GetNumAutoKeys();
@@ -124,43 +89,18 @@ void VectorNTRUAccumulatorXZNEW::EvalAcc(const std::shared_ptr<VectorNTRUCryptoP
         auto& indexVec = permuteMap[index];
         indexVec.push_back(i);
     }
-    // std::cout << "Map in " << float(clock()-startMap)*1000/CLOCKS_PER_SEC<<"ms" << std::endl;
-
-    //cout<<"\n ---盲选转---"<<endl;
+   
     NativeInteger gen(5);
     uint32_t genInt       = 5;
     uint32_t nSkips       = 0;
 
-        //xbw
-        //AddToAccXZNEW(params, (*ek)[0][0][n+2], acc);
+   
+    acc->GetElements() = (acc->GetElements()).AutomorphismTransform(genInt); 
 
-    //cout<<"先对acc0做一次X^-g的自同构"<<endl;
-    // acc->GetElements() = (acc->GetElements()).AutomorphismTransform(M - genInt); // 先对acc0做一次X^-g的自同构
-    //new
-    acc->GetElements() = (acc->GetElements()).AutomorphismTransform(genInt); // 先对acc0做一次X^g的自同构
-
-    // NativePoly res22222(polyParams, Format::EVALUATION, true);
-    // res22222 =  acc->GetElements();
-    // res22222.SetFormat(Format::COEFFICIENT);
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res22222[i] << " ";
-    // }
-    // cout<<endl;
-
-    // clock_t startRT = clock();
-    // cout<<"乘NTRU'密文，转化成NTRU"<<endl;
-    //转化成NTRU'
-    //wkx
+   
     AddToAccXZNEW(params, (*ek)[0][0][n], acc);
 
-    // NativePoly res2222(polyParams, Format::EVALUATION, true);
-    // f.SetFormat(EVALUATION);
-    // res2222 = f * acc->GetElements();
-    // res2222.SetFormat(Format::COEFFICIENT);
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res2222[i] << " ";
-    // }
-    // cout<<endl;
+ 
     int num_Automorphism = 1;
     /*------------------------------------------------------------------------*/
 
@@ -177,127 +117,26 @@ void VectorNTRUAccumulatorXZNEW::EvalAcc(const std::shared_ptr<VectorNTRUCryptoP
 
             auto& indexVec = permuteMap[i];
             for (size_t j = 0; j < indexVec.size(); j++) {
-                // if(indexVec[j] == 0)
-                // {
-                //     cout<<"X^s_0 in for w_0 = 5^i = 1 a_0 = 0"<<endl;
-                //     cout<<"i = "<<i<<endl;
-                // }
                 AddToAccXZNEW(params, (*ek)[0][0][indexVec[j]], acc);
             }
         }
         nSkips++;
 
         if (nSkips == numAutoKeys || i == 1) {
-            //cout<<"### 自同构并密钥切换 g^"<<nSkips<<"并解密验证此后的acc:"<<endl;
             Automorphism(params, gen.ModExp(nSkips, M), (*ek)[0][1][nSkips], acc);
             num_Automorphism++;
-            // NativePoly res22(polyParams, Format::EVALUATION, true);
-            // f.SetFormat(EVALUATION);
-            // res22 = f * acc->GetElements();
-            // res22.SetFormat(Format::COEFFICIENT);
-            // for (uint32_t i = 0; i < N; i++) {
-            //     std::cout << res22[i] << " ";
-            // }
-            // cout<<endl;
             nSkips = 0;
         }
     }
 
 
-    // acc->GetElements() = (acc->GetElements()).AutomorphismTransform(M - genInt);  / X-g
-    // uint32_t t = gen.ModExp(6, M).ConvertToInt<uint32_t>();
-    // cout<<"\nt="<<t<<endl;
-    // acc->GetElements() = (acc->GetElements()).AutomorphismTransform(t);
-
-
-    
-    //cout<<"\n开始对自同构X^{g^{8}}后的acc解密"<<endl;
-    // NativePoly res22(polyParams, Format::EVALUATION, true);
-    // f.SetFormat(EVALUATION);
-    // res22 = f * acc->GetElements();
-    // res22.SetFormat(Format::COEFFICIENT);
-    // cout << "\n自同构X^{g^{8}}后的acc的 acc解密  系数应该全是+-Q/8" << endl;
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res22[i] << " ";
-    // }
-    // cout<<endl;
-
-    // for a_j=1 .0
-    // std::cout << "S3 in " << float(clock()-startS3)*1000/CLOCKS_PER_SEC<<"ms" << std::endl;
-    // clock_t startS4 = clock();
     if (permuteMap.find(0) != permuteMap.end()) {
         //cout<<"crycle 4"<<endl;
         auto& indexVec = permuteMap[0];
         for (size_t j = 0; j < indexVec.size(); j++) {
-            // if(indexVec[j] == 0)
-            // {
-            //     cout<<"X^s_0 in for w_0=0  a_0=0"<<endl;
-            //     cout<<"i = "<<0<<endl;
-            // } 
             AddToAccXZNEW(params, (*ek)[0][0][indexVec[j]], acc);
         }
     }
-    // std::cout << "S4 in " << float(clock()-startS4)*1000/CLOCKS_PER_SEC<<"ms" << std::endl;
-    // NativePoly res2(polyParams, Format::EVALUATION, true);
-    // f.SetFormat(EVALUATION);
-    // res2 = f * acc->GetElements();
-    // res2.SetFormat(Format::COEFFICIENT);
-    // cout << "\nsums 前的 acc解密 = 某项系数应该是+-Q/8" << endl;
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res2[i] << " ";
-    // }
-    /*------------------------------------------------------------------------*/
-
-    // std::cout << "Rotation in " << float(clock()-startRT)*1000/CLOCKS_PER_SEC<<"ms" << std::endl;
-    // -sum s
-    // AddToAccXZNEW(params, (*ek)[0][0][n], acc);
-    // cout<<"num_Automorphism = "<<num_Automorphism<<" ";
-    // std::cout << "Evalacc in " << float(clock()-start)*1000/CLOCKS_PER_SEC<<"ms ";
-
-    //cout<<num_Automorphism<<",";
-    // cout<<"\nn="<<n<<endl;
-    // cout<<"\n(*ek)[0][0][n] = "<<endl;
-    // for(uint32_t i =0;i<(*ek)[0][0][n]->GetElements().size();i++)
-    // {
-    //     for(uint32_t j=0;j<8;j++)
-    //     {
-    //         NativePoly res3 = (*ek)[0][0][n]->GetElements()[i];
-    //         res3.SetFormat(COEFFICIENT);
-    //         cout<<res3[j]<<" ";
-    //     }
-    //     cout<<endl;
-    // }
-
-
-    // NativePoly res3(polyParams, Format::EVALUATION, true);
-    // NativePoly sums = (*ek)[0][0][n]->GetElements()[0];
-    // f.SetFormat(EVALUATION);
-    // res3 = f * sums;
-    // res3.SetFormat(Format::COEFFICIENT);
-    // cout << "\nsum 的 acc解密 = " << endl;
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res3[i] << " ";
-    // }
-
-
-
-    /*解密acc*/
-    //f.SetFormat(COEFFICIENT);
-    // cout << "\n f = " << endl;
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << f[i] << " ";
-    // }
-    // f.SetFormat(EVALUATION);
-
-    // NativePoly res(polyParams, Format::EVALUATION, true);
-    // f.SetFormat(EVALUATION);
-    // res = f * acc->GetElements();
-    // res.SetFormat(Format::COEFFICIENT);
-    // cout << "\n sum 后的 acc解密 = " << endl;
-    // for (uint32_t i = 0; i < N; i++) {
-    //     std::cout << res[i] << " ";
-    // }
-
     
 }
 
@@ -310,17 +149,8 @@ VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KeyGenXZNEW_extend(const std::shar
     auto Gpow       = params->GetGPower();      //
     DiscreteUniformGeneratorImpl<NativeVector> dug;
     NativeInteger Q{params->GetQ()};
-    dug.SetModulus(Q);  //确保dug的模数是Q
-                        //Reduce mod q (dealing with negative number as well)
-    //int64_t q  = params->Getq().ConvertToInt<int64_t>();  //
-    //int64_t N  = params->GetN();
-    // int64_t mm = (((m % N) + N) % N);  // 0 1 N-1
-    // bool isReducedMM{false};
-    // if (m < 0) {
-    //     isReducedMM = true;
-    // }
-    // cout << "s=" << m << endl;
-    // approximate gadget decomposition is used; the first digit is ignored
+    dug.SetModulus(Q);  
+                    
     uint32_t digitsG2{(params->GetDigitsG() - 1)};
     VectorNTRUEvalKeyImpl result(digitsG2);
 
@@ -329,12 +159,7 @@ VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KeyGenXZNEW_extend(const std::shar
     std::vector<NativePoly> tempA(digitsG2, zeroPoly);
     NativePoly coe_m_poly = m_poly;
     coe_m_poly.SetFormat(COEFFICIENT);
-    //cout<<"\nin KeyGenXZNEW_extend "<<endl;
-    // for(int i=0;i<8;i++)
-    // {
-    //     cout<<coe_m_poly[i]<<" ";
-    // }
-    // cout<<endl;
+
 
     // cout<<"\n m * G "<<endl;
     for (uint32_t i = 0; i < digitsG2; ++i) {
@@ -345,11 +170,6 @@ VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KeyGenXZNEW_extend(const std::shar
         result[i] = result[i] * invskNTT;  // g/f
 
         tempA[i] = Gpow[i + 1]*coe_m_poly;  //  m*G
-        // for(int j=0;j<8;j++)
-        // {
-        //     cout<<tempA[i][j]<<" ";
-        // }
-        // cout<<endl;
 
         tempA[i].SetFormat(Format::EVALUATION);
         result[i] = result[i] + tempA[i];
@@ -358,16 +178,14 @@ VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KeyGenXZNEW_extend(const std::shar
 }
 
 
-//TODO KDM-form
+// KDM-form
 VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KDMKeyGenXZNEW(const std::shared_ptr<VectorNTRUCryptoParams>& params,
                                                              const NativePoly& invskNTT, LWEPlaintext m) const {
     auto polyParams = params->GetPolyParams();  //(Q,2N)
     auto Gpow       = params->GetGPower();      //
     DiscreteUniformGeneratorImpl<NativeVector> dug;
     NativeInteger Q{params->GetQ()};
-    dug.SetModulus(Q);  //确保dug的模数是Q
-                        //Reduce mod q (dealing with negative number as well)
-    //int64_t q  = params->Getq().ConvertToInt<int64_t>();  //
+    dug.SetModulus(Q);  
     int64_t N  = params->GetN();
     int64_t mm = (((m % N) + N) % N);  // 0 1 N-1
     bool isReducedMM{false};
@@ -387,9 +205,6 @@ VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KDMKeyGenXZNEW(const std::shared_p
             result[i][mm].ModAddFastEq(Gpow[i + 1],Q);  // g+X^m*G
         else
             result[i][mm].ModSubFastEq(Gpow[i + 1],Q);  // g-X^m*G
-        // for (uint32_t j = 0; j < 8; j++) {
-        //     cout << result[i][j] << " ";
-        // }
         result[i].SetFormat(Format::EVALUATION);
 
         // cout << endl;
@@ -404,20 +219,13 @@ VectorNTRUEvalKey VectorNTRUAccumulatorXZNEW::KeyGenXZNEW(const std::shared_ptr<
     auto polyParams = params->GetPolyParams();  //(Q,2N)
     auto Gpow       = params->GetGPower();      //
 
-    //DiscreteUniformGeneratorImpl<NativeVector> dug;
     NativeInteger Q{params->GetQ()};
-    //dug.SetModulus(Q-Q);//确保dug的模数是Q
-    //Reduce mod q (dealing with negative number as well)
-
-    //int64_t q  = params->Getq().ConvertToInt<int64_t>();  //
     int64_t N  = params->GetN();
     int64_t mm = (((m % N) + N) % N);  // 0 1 q-1
     bool isReducedMM{false};
     if (m < 0) {
         isReducedMM = true;
     }
-    //cout<<"\nin KeyGenXZNEW mm = "<< mm <<endl;
-    // approximate gadget decomposition is used; the first digit is ignored
     uint32_t digitsG2{(params->GetDigitsG() - 1)};  //2
     //std::vector<NativePoly> tempA(digitsG2, NativePoly(dug, polyParams, Format::COEFFICIENT));
     NativePoly zeroPoly(polyParams, Format::COEFFICIENT);
